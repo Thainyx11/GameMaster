@@ -48,6 +48,11 @@ const selectedModel = ref(props.defaultModel)
 const messagesContainer = ref<HTMLElement>()
 const localMessages = ref<Message[]>([])
 
+// Helper pour récupérer le token CSRF
+function getCsrfToken(): string {
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+}
+
 // Watchers
 watch(() => props.messages, (newMessages) => {
     localMessages.value = [...newMessages]
@@ -62,7 +67,7 @@ watch(() => props.currentConversation, (conv) => {
 // Computed
 const displayMessages = computed(() => {
     const msgs = [...localMessages.value]
-    
+
     if (isStreaming.value && streamingContent.value) {
         msgs.push({
             id: -1,
@@ -71,7 +76,7 @@ const displayMessages = computed(() => {
             created_at: new Date().toISOString()
         })
     }
-    
+
     return msgs
 })
 
@@ -89,11 +94,17 @@ async function createNewConversation() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content || '',
+                'X-CSRF-TOKEN': getCsrfToken(),
+                'Accept': 'application/json',
             },
             body: JSON.stringify({ model: selectedModel.value })
         })
-        
+
+        if (!response.ok) {
+            console.error('Erreur:', response.status)
+            return
+        }
+
         const data = await response.json()
         router.visit(route('chat.show', data.conversation.id))
     } catch (error) {
@@ -103,13 +114,19 @@ async function createNewConversation() {
 
 async function deleteConversation(id: number) {
     try {
-        await fetch(route('chat.delete', id), {
+        const response = await fetch(route('chat.delete', id), {
             method: 'DELETE',
             headers: {
-                'X-CSRF-TOKEN': document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content || '',
+                'X-CSRF-TOKEN': getCsrfToken(),
+                'Accept': 'application/json',
             }
         })
-        
+
+        if (!response.ok) {
+            console.error('Erreur:', response.status)
+            return
+        }
+
         if (props.currentConversation?.id === id) {
             router.visit(route('chat.index'))
         } else {
@@ -122,60 +139,102 @@ async function deleteConversation(id: number) {
 
 async function sendMessage() {
     if (!userMessage.value.trim() || isLoading.value) return
-    
-    // Créer une conversation si nécessaire
+
+    const message = userMessage.value.trim()
+
+    // Si pas de conversation, en créer une d'abord et envoyer le message après
     if (!props.currentConversation) {
+        isLoading.value = true
+
         try {
-            const response = await fetch(route('chat.create'), {
+            // Créer la conversation
+            const createResponse = await fetch(route('chat.create'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content || '',
+                    'X-CSRF-TOKEN': getCsrfToken(),
+                    'Accept': 'application/json',
                 },
                 body: JSON.stringify({ model: selectedModel.value })
             })
-            
-            const data = await response.json()
-            
-            // Envoyer le message après création
-            const message = userMessage.value.trim()
+
+            if (!createResponse.ok) {
+                console.error('Erreur création:', createResponse.status)
+                isLoading.value = false
+                return
+            }
+
+            const createData = await createResponse.json()
+            const conversationId = createData.conversation.id
+
+            // Maintenant envoyer le message directement
             userMessage.value = ''
-            
-            router.visit(route('chat.show', data.conversation.id), {
-                onSuccess: () => {
-                    userMessage.value = message
-                    nextTick(() => sendMessage())
-                }
+            isStreaming.value = true
+            streamingContent.value = ''
+
+            localMessages.value.push({
+                id: Date.now(),
+                role: 'user',
+                content: message,
+                created_at: new Date().toISOString()
             })
-            return
+
+            scrollToBottom()
+
+            const sendResponse = await fetch(route('chat.send'), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': getCsrfToken(),
+                    'Accept': 'text/event-stream',
+                },
+                body: JSON.stringify({
+                    conversation_id: conversationId,
+                    message: message,
+                })
+            })
+
+            if (!sendResponse.ok) {
+                throw new Error(`Erreur réseau: ${sendResponse.status}`)
+            }
+
+            await processStream(sendResponse)
+
+            // Rediriger vers la conversation
+            router.visit(route('chat.show', conversationId))
+
         } catch (error) {
             console.error('Erreur:', error)
-            return
+            streamingContent.value = '❌ Une erreur est survenue. Veuillez réessayer.'
+        } finally {
+            isLoading.value = false
+            isStreaming.value = false
         }
+
+        return
     }
-    
-    const message = userMessage.value.trim()
+
+    // Conversation existante - envoyer le message normalement
     userMessage.value = ''
     isLoading.value = true
     isStreaming.value = true
     streamingContent.value = ''
-    
-    // Ajouter le message utilisateur localement
+
     localMessages.value.push({
         id: Date.now(),
         role: 'user',
         content: message,
         created_at: new Date().toISOString()
     })
-    
+
     scrollToBottom()
-    
+
     try {
         const response = await fetch(route('chat.send'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content || '',
+                'X-CSRF-TOKEN': getCsrfToken(),
                 'Accept': 'text/event-stream',
             },
             body: JSON.stringify({
@@ -183,42 +242,13 @@ async function sendMessage() {
                 message: message,
             })
         })
-        
-        if (!response.ok) throw new Error('Erreur réseau')
-        
-        const reader = response.body?.getReader()
-        const decoder = new TextDecoder()
-        
-        if (!reader) throw new Error('Stream non disponible')
-        
-        while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-            
-            const chunk = decoder.decode(value, { stream: true })
-            const lines = chunk.split('\n')
-            
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    try {
-                        const data = JSON.parse(line.slice(6))
-                        
-                        if (data.token) {
-                            streamingContent.value += data.token
-                            scrollToBottom()
-                        }
-                        
-                        if (data.title) {
-                            router.reload({ only: ['conversations', 'currentConversation'] })
-                        }
-                        
-                        if (data.done) {
-                            router.reload({ only: ['messages'] })
-                        }
-                    } catch (e) {}
-                }
-            }
+
+        if (!response.ok) {
+            throw new Error(`Erreur réseau: ${response.status}`)
         }
+
+        await processStream(response)
+
     } catch (error) {
         console.error('Erreur:', error)
         streamingContent.value = '❌ Une erreur est survenue. Veuillez réessayer.'
@@ -228,18 +258,59 @@ async function sendMessage() {
     }
 }
 
+async function processStream(response: Response) {
+    const reader = response.body?.getReader()
+    const decoder = new TextDecoder()
+
+    if (!reader) throw new Error('Stream non disponible')
+
+    while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value, { stream: true })
+        const lines = chunk.split('\n')
+
+        for (const line of lines) {
+            if (line.startsWith('data: ')) {
+                try {
+                    const data = JSON.parse(line.slice(6))
+
+                    if (data.token) {
+                        streamingContent.value += data.token
+                        scrollToBottom()
+                    }
+
+                    if (data.title) {
+                        router.reload({ only: ['conversations', 'currentConversation'] })
+                    }
+
+                    if (data.done) {
+                        router.reload({ only: ['messages'] })
+                    }
+
+                    if (data.error) {
+                        streamingContent.value = `❌ Erreur: ${data.error}`
+                    }
+                } catch (e) {}
+            }
+        }
+    }
+}
+
 async function updateModel(newModel: string) {
     if (!props.currentConversation) {
         selectedModel.value = newModel
         return
     }
-    
+
     try {
         await fetch(route('chat.updateModel', props.currentConversation.id), {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content || '',
+                'X-CSRF-TOKEN': getCsrfToken(),
+                'Accept': 'application/json',
             },
             body: JSON.stringify({ model: newModel })
         })
@@ -272,7 +343,7 @@ onMounted(() => {
                     <h1 class="text-lg font-semibold text-gray-200">
                         {{ currentConversation?.title || '🎲 Nouvelle aventure' }}
                     </h1>
-                    
+
                     <ModelSelector
                         :models="models"
                         :model-value="selectedModel"
@@ -291,19 +362,19 @@ onMounted(() => {
                             Je suis votre Maître de Jeu personnel. Décrivez-moi l'aventure que vous souhaitez vivre !
                         </p>
                         <div class="flex flex-wrap gap-2 justify-center">
-                            <button 
+                            <button
                                 @click="userMessage = 'Je veux jouer une aventure heroic fantasy avec des donjons et des dragons !'"
                                 class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors"
                             >
                                 🐉 Heroic Fantasy
                             </button>
-                            <button 
+                            <button
                                 @click="userMessage = 'Lance-moi dans une enquête mystérieuse style Cthulhu !'"
                                 class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors"
                             >
                                 🐙 Horreur cosmique
                             </button>
-                            <button 
+                            <button
                                 @click="userMessage = 'Je veux explorer un univers cyberpunk dystopique !'"
                                 class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors"
                             >
