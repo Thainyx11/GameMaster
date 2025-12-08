@@ -6,7 +6,6 @@ import MessageBubble from '@/Components/MessageBubble.vue'
 import ConversationSidebar from '@/Components/ConversationSidebar.vue'
 import ModelSelector from '@/Components/ModelSelector.vue'
 
-// Types
 interface Message {
     id: number
     role: 'user' | 'assistant'
@@ -36,10 +35,8 @@ interface Props {
     defaultModel: string
 }
 
-// Props
 const props = defineProps<Props>()
 
-// State
 const userMessage = ref('')
 const isLoading = ref(false)
 const streamingContent = ref('')
@@ -48,26 +45,20 @@ const selectedModel = ref(props.defaultModel)
 const messagesContainer = ref<HTMLElement>()
 const localMessages = ref<Message[]>([])
 
-// Helper pour récupérer le token CSRF
 function getCsrfToken(): string {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
 }
 
-// Watchers
 watch(() => props.messages, (newMessages) => {
     localMessages.value = [...newMessages]
 }, { immediate: true })
 
 watch(() => props.currentConversation, (conv) => {
-    if (conv) {
-        selectedModel.value = conv.model
-    }
+    if (conv) selectedModel.value = conv.model
 }, { immediate: true })
 
-// Computed
 const displayMessages = computed(() => {
     const msgs = [...localMessages.value]
-
     if (isStreaming.value && streamingContent.value) {
         msgs.push({
             id: -1,
@@ -76,11 +67,9 @@ const displayMessages = computed(() => {
             created_at: new Date().toISOString()
         })
     }
-
     return msgs
 })
 
-// Methods
 async function scrollToBottom() {
     await nextTick()
     if (messagesContainer.value) {
@@ -95,15 +84,12 @@ async function createNewConversation() {
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': getCsrfToken(),
-                'Accept': 'application/json',
+                'Accept': 'application/json'
             },
             body: JSON.stringify({ model: selectedModel.value })
         })
 
-        if (!response.ok) {
-            console.error('Erreur:', response.status)
-            return
-        }
+        if (!response.ok) return console.error('Erreur:', response.status)
 
         const data = await response.json()
         router.visit(route('chat.show', data.conversation.id))
@@ -118,20 +104,14 @@ async function deleteConversation(id: number) {
             method: 'DELETE',
             headers: {
                 'X-CSRF-TOKEN': getCsrfToken(),
-                'Accept': 'application/json',
+                'Accept': 'application/json'
             }
         })
 
-        if (!response.ok) {
-            console.error('Erreur:', response.status)
-            return
-        }
+        if (!response.ok) return console.error('Erreur:', response.status)
 
-        if (props.currentConversation?.id === id) {
-            router.visit(route('chat.index'))
-        } else {
-            router.reload()
-        }
+        if (props.currentConversation?.id === id) router.visit(route('chat.index'))
+        else router.reload()
     } catch (error) {
         console.error('Erreur suppression:', error)
     }
@@ -142,18 +122,16 @@ async function sendMessage() {
 
     const message = userMessage.value.trim()
 
-    // Si pas de conversation, en créer une d'abord et envoyer le message après
+    // Si pas de conversation
     if (!props.currentConversation) {
         isLoading.value = true
-
         try {
-            // Créer la conversation
             const createResponse = await fetch(route('chat.create'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': getCsrfToken(),
-                    'Accept': 'application/json',
+                    'Accept': 'application/json'
                 },
                 body: JSON.stringify({ model: selectedModel.value })
             })
@@ -167,7 +145,6 @@ async function sendMessage() {
             const createData = await createResponse.json()
             const conversationId = createData.conversation.id
 
-            // Maintenant envoyer le message directement
             userMessage.value = ''
             isStreaming.value = true
             streamingContent.value = ''
@@ -186,23 +163,19 @@ async function sendMessage() {
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': getCsrfToken(),
-                    'Accept': 'text/event-stream',
+                    'Accept': 'text/event-stream'
                 },
                 body: JSON.stringify({
                     conversation_id: conversationId,
-                    message: message,
+                    message
                 })
             })
 
-            if (!sendResponse.ok) {
-                throw new Error(`Erreur réseau: ${sendResponse.status}`)
-            }
+            if (!sendResponse.ok) throw new Error(`Erreur réseau: ${sendResponse.status}`)
 
             await processStream(sendResponse)
 
-            // Rediriger vers la conversation
             router.visit(route('chat.show', conversationId))
-
         } catch (error) {
             console.error('Erreur:', error)
             streamingContent.value = '❌ Une erreur est survenue. Veuillez réessayer.'
@@ -214,7 +187,7 @@ async function sendMessage() {
         return
     }
 
-    // Conversation existante - envoyer le message normalement
+    // Conversation existante
     userMessage.value = ''
     isLoading.value = true
     isStreaming.value = true
@@ -235,20 +208,17 @@ async function sendMessage() {
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': getCsrfToken(),
-                'Accept': 'text/event-stream',
+                'Accept': 'text/event-stream'
             },
             body: JSON.stringify({
                 conversation_id: props.currentConversation.id,
-                message: message,
+                message
             })
         })
 
-        if (!response.ok) {
-            throw new Error(`Erreur réseau: ${response.status}`)
-        }
+        if (!response.ok) throw new Error(`Erreur réseau: ${response.status}`)
 
         await processStream(response)
-
     } catch (error) {
         console.error('Erreur:', error)
         streamingContent.value = '❌ Une erreur est survenue. Veuillez réessayer.'
@@ -310,25 +280,24 @@ async function updateModel(newModel: string) {
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': getCsrfToken(),
-                'Accept': 'application/json',
+                'Accept': 'application/json'
             },
             body: JSON.stringify({ model: newModel })
         })
+
         selectedModel.value = newModel
     } catch (error) {
         console.error('Erreur:', error)
     }
 }
 
-onMounted(() => {
-    scrollToBottom()
-})
+onMounted(() => scrollToBottom())
 </script>
 
 <template>
     <AppLayout>
         <div class="flex h-[calc(100vh-4rem)]">
-            <!-- Sidebar -->
+
             <ConversationSidebar
                 :conversations="conversations"
                 :current-id="currentConversation?.id"
@@ -336,9 +305,8 @@ onMounted(() => {
                 @delete-conversation="deleteConversation"
             />
 
-            <!-- Zone de chat -->
             <div class="flex-1 flex flex-col bg-gray-900">
-                <!-- Header -->
+
                 <header class="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800/50">
                     <h1 class="text-lg font-semibold text-gray-200">
                         {{ currentConversation?.title || '🎲 Nouvelle aventure' }}
@@ -352,15 +320,18 @@ onMounted(() => {
                     />
                 </header>
 
-                <!-- Messages -->
                 <div ref="messagesContainer" class="flex-1 overflow-y-auto">
-                    <!-- Message de bienvenue -->
-                    <div v-if="displayMessages.length === 0" class="flex flex-col items-center justify-center h-full text-center px-4">
+
+                    <div
+                        v-if="displayMessages.length === 0"
+                        class="flex flex-col items-center justify-center h-full text-center px-4"
+                    >
                         <div class="text-6xl mb-4">🎲</div>
                         <h2 class="text-2xl font-bold text-purple-400 mb-2">Bienvenue, aventurier !</h2>
                         <p class="text-gray-400 max-w-md mb-6">
                             Je suis votre Maître de Jeu personnel. Décrivez-moi l'aventure que vous souhaitez vivre !
                         </p>
+
                         <div class="flex flex-wrap gap-2 justify-center">
                             <button
                                 @click="userMessage = 'Je veux jouer une aventure heroic fantasy avec des donjons et des dragons !'"
@@ -368,12 +339,14 @@ onMounted(() => {
                             >
                                 🐉 Heroic Fantasy
                             </button>
+
                             <button
                                 @click="userMessage = 'Lance-moi dans une enquête mystérieuse style Cthulhu !'"
                                 class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors"
                             >
                                 🐙 Horreur cosmique
                             </button>
+
                             <button
                                 @click="userMessage = 'Je veux explorer un univers cyberpunk dystopique !'"
                                 class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors"
@@ -383,7 +356,6 @@ onMounted(() => {
                         </div>
                     </div>
 
-                    <!-- Liste des messages -->
                     <div v-else>
                         <MessageBubble
                             v-for="msg in displayMessages"
@@ -395,10 +367,10 @@ onMounted(() => {
                     </div>
                 </div>
 
-                <!-- Zone de saisie -->
                 <div class="border-t border-gray-700 p-4 bg-gray-800/50">
                     <form @submit.prevent="sendMessage" class="flex gap-3" role="form" aria-label="Envoyer un message">
                         <label for="message-input" class="sr-only">Votre message</label>
+
                         <input
                             id="message-input"
                             v-model="userMessage"
@@ -407,28 +379,9 @@ onMounted(() => {
                             class="flex-1 bg-gray-700 border-gray-600 text-gray-200 rounded-lg px-4 py-3 focus:ring-purple-500 focus:border-purple-500 placeholder-gray-400"
                             :disabled="isLoading"
                             :aria-busy="isLoading"
-                            aria-describedby="message-help"
                             autocomplete="off"
                         />
-                        <span id="message-help" class="sr-only">Décrivez l'action que vous souhaitez effectuer dans le jeu</span>
-                        <button
-                            type="submit"
-                            :disabled="isLoading || !userMessage.trim()"
-                            class="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2"
-                            :aria-label="isLoading ? 'Envoi en cours...' : 'Envoyer le message'"
-                        >
-                            <span v-if="isLoading" class="animate-spin" aria-hidden="true">⏳</span>
-                            <span v-else aria-hidden="true">🎲</span>
-                            <span>Envoyer</span>
-                        </button>
-                    </form>
-                </div>
-                            v-model="userMessage"
-                            type="text"
-                            placeholder="Décrivez votre action..."
-                            class="flex-1 bg-gray-700 border-gray-600 text-gray-200 rounded-lg px-4 py-3 focus:ring-purple-500 focus:border-purple-500 placeholder-gray-400"
-                            :disabled="isLoading"
-                        />
+
                         <button
                             type="submit"
                             :disabled="isLoading || !userMessage.trim()"
@@ -436,10 +389,11 @@ onMounted(() => {
                         >
                             <span v-if="isLoading" class="animate-spin">⏳</span>
                             <span v-else>🎲</span>
-                            Envoyer
+                            <span>Envoyer</span>
                         </button>
                     </form>
                 </div>
+
             </div>
         </div>
     </AppLayout>
