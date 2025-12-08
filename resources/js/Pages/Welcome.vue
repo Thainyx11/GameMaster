@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3'
 import CookieBanner from '@/Components/CookieBanner.vue'
+import HeadMeta from '@/Components/Head.vue'
 
 const page = usePage()
 const user = page.props.auth?.user
 </script>
 
 <template>
+<HeadMeta 
+        title="GameMaster - Votre Maître de Jeu IA Personnel"
+        description="Vivez des aventures épiques avec GameMaster. Heroic fantasy, horreur cosmique, cyberpunk... Votre imagination est la seule limite. Essayez gratuitement !"
+    />
     <div class="min-h-screen bg-gray-900">
         <!-- Navigation -->
         <nav class="bg-gray-800/50 border-b border-gray-700">

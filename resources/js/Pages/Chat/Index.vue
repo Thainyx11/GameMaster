@@ -397,8 +397,32 @@ onMounted(() => {
 
                 <!-- Zone de saisie -->
                 <div class="border-t border-gray-700 p-4 bg-gray-800/50">
-                    <form @submit.prevent="sendMessage" class="flex gap-3">
+                    <form @submit.prevent="sendMessage" class="flex gap-3" role="form" aria-label="Envoyer un message">
+                        <label for="message-input" class="sr-only">Votre message</label>
                         <input
+                            id="message-input"
+                            v-model="userMessage"
+                            type="text"
+                            placeholder="Décrivez votre action..."
+                            class="flex-1 bg-gray-700 border-gray-600 text-gray-200 rounded-lg px-4 py-3 focus:ring-purple-500 focus:border-purple-500 placeholder-gray-400"
+                            :disabled="isLoading"
+                            :aria-busy="isLoading"
+                            aria-describedby="message-help"
+                            autocomplete="off"
+                        />
+                        <span id="message-help" class="sr-only">Décrivez l'action que vous souhaitez effectuer dans le jeu</span>
+                        <button
+                            type="submit"
+                            :disabled="isLoading || !userMessage.trim()"
+                            class="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2"
+                            :aria-label="isLoading ? 'Envoi en cours...' : 'Envoyer le message'"
+                        >
+                            <span v-if="isLoading" class="animate-spin" aria-hidden="true">⏳</span>
+                            <span v-else aria-hidden="true">🎲</span>
+                            <span>Envoyer</span>
+                        </button>
+                    </form>
+                </div>
                             v-model="userMessage"
                             type="text"
                             placeholder="Décrivez votre action..."

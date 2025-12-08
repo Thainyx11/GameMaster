@@ -19,39 +19,51 @@ const renderedContent = computed(() => {
 })
 
 const isUser = computed(() => props.role === 'user')
+const roleLabel = computed(() => isUser.value ? 'Votre message' : 'Réponse du Maître du Jeu')
 </script>
 
 <template>
-    <div 
+    <article 
         class="flex gap-4 p-4"
         :class="isUser ? 'bg-gray-800/50' : 'bg-gray-900'"
+        :aria-label="roleLabel"
+        role="article"
     >
         <!-- Avatar -->
         <div 
             class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-xl"
             :class="isUser ? 'bg-purple-600' : 'bg-amber-600'"
+            role="img"
+            :aria-label="isUser ? 'Avatar utilisateur' : 'Avatar GameMaster'"
         >
             {{ isUser ? '🧙' : '🎲' }}
         </div>
 
         <!-- Contenu -->
         <div class="flex-1 min-w-0">
-            <div class="text-sm font-medium mb-1" :class="isUser ? 'text-purple-400' : 'text-amber-400'">
-                {{ isUser ? 'Vous' : 'GameMaster' }}
+            <div 
+                class="text-sm font-medium mb-1" 
+                :class="isUser ? 'text-purple-400' : 'text-amber-400'"
+                aria-hidden="true"
+            >
+                {{ isUser ? 'Vous' : 'Maître du Jeu' }}
             </div>
 
             <div 
                 class="prose prose-invert prose-purple max-w-none text-gray-200"
                 v-html="renderedContent"
+                :aria-live="isStreaming ? 'polite' : 'off'"
             />
 
             <!-- Curseur de streaming -->
             <span 
                 v-if="isStreaming" 
                 class="inline-block w-2 h-5 bg-purple-400 animate-pulse ml-1"
+                role="status"
+                aria-label="Réponse en cours de génération"
             />
         </div>
-    </div>
+    </article>
 </template>
 
 <style>

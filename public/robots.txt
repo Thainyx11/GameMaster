@@ -1,2 +1,10 @@
 User-agent: *
-Disallow:
+Allow: /
+
+# Sitemap
+Sitemap: https://gamemaster.test/sitemap.xml
+
+# Bloquer les pages privées
+Disallow: /chat
+Disallow: /instructions
+Disallow: /profile
