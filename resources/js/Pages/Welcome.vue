@@ -1,14 +1,23 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import CookieBanner from '@/Components/CookieBanner.vue'
 import HeadMeta from '@/Components/Head.vue'
+import ThemeToggle from '@/Components/ThemeToggle.vue'
+import { useTheme } from '@/Composables/useTheme'
 
 const page = usePage()
 const user = page.props.auth?.user
+
+const { initTheme } = useTheme()
+
+onMounted(() => {
+    initTheme()
+})
 </script>
 
 <template>
-<HeadMeta 
+    <HeadMeta
         title="GameMaster - Votre Maître de Jeu IA Personnel"
         description="Vivez des aventures épiques avec GameMaster. Heroic fantasy, horreur cosmique, cyberpunk... Votre imagination est la seule limite. Essayez gratuitement !"
     />
@@ -22,6 +31,7 @@ const user = page.props.auth?.user
                         <span class="text-xl font-bold text-purple-400">GameMaster</span>
                     </div>
                     <div class="flex items-center gap-4">
+                        <ThemeToggle />
                         <template v-if="user">
                             <Link :href="route('chat.index')" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors">
                                 Accéder au chat
@@ -52,8 +62,8 @@ const user = page.props.auth?.user
                     🎲 Vivez des aventures épiques avec une IA narrative. Heroic fantasy, horreur cosmique, cyberpunk... Votre imagination est la seule limite.
                 </p>
                 <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                    <Link 
-                        :href="user ? route('chat.index') : route('register')" 
+                    <Link
+                        :href="user ? route('chat.index') : route('register')"
                         class="bg-purple-600 hover:bg-purple-700 text-white px-8 py-4 rounded-xl text-lg font-semibold transition-colors"
                     >
                         ✨ Commencer l'aventure

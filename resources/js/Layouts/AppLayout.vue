@@ -1,11 +1,19 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
+import ThemeToggle from '@/Components/ThemeToggle.vue'
+import { useTheme } from '@/Composables/useTheme'
 
 const page = usePage()
 const user = page.props.auth?.user as { name: string } | undefined
 
 const mobileMenuOpen = ref(false)
+
+const { initTheme } = useTheme()
+
+onMounted(() => {
+    initTheme()
+})
 </script>
 
 <template>
@@ -17,18 +25,18 @@ const mobileMenuOpen = ref(false)
                     <div class="flex items-center">
                         <Link :href="route('home')" class="flex items-center">
                             <span class="text-2xl mr-2">🎲</span>
-                            <span class="text-xl font-bold text-purple-400">GameMaster</span>
+                            <span class="text-xl font-bold text-purple-400">Maître du jeu</span>
                         </Link>
-                        
+
                         <div class="hidden md:flex ml-10 space-x-4">
-                            <Link 
-                                :href="route('chat.index')" 
+                            <Link
+                                :href="route('chat.index')"
                                 class="text-gray-300 hover:text-white px-3 py-2 rounded-md transition-colors"
                             >
                                 💬 Chat
                             </Link>
-                            <Link 
-                                :href="route('instructions.edit')" 
+                            <Link
+                                :href="route('instructions.edit')"
                                 class="text-gray-300 hover:text-white px-3 py-2 rounded-md transition-colors"
                             >
                                 ⚙️ Instructions
@@ -36,18 +44,20 @@ const mobileMenuOpen = ref(false)
                         </div>
                     </div>
 
+                    <!-- Menu utilisateur -->
                     <div class="flex items-center">
                         <div class="hidden md:flex items-center space-x-4">
+                            <ThemeToggle />
                             <span class="text-gray-400">{{ user?.name }}</span>
-                            <Link 
-                                :href="route('profile.edit')" 
+                            <Link
+                                :href="route('profile.edit')"
                                 class="text-gray-300 hover:text-white"
                             >
                                 Profil
                             </Link>
-                            <Link 
-                                :href="route('logout')" 
-                                method="post" 
+                            <Link
+                                :href="route('logout')"
+                                method="post"
                                 as="button"
                                 class="text-gray-300 hover:text-white"
                             >
@@ -55,15 +65,20 @@ const mobileMenuOpen = ref(false)
                             </Link>
                         </div>
 
-                        <button 
-                            @click="mobileMenuOpen = !mobileMenuOpen"
-                            class="md:hidden text-gray-400 hover:text-white"
-                        >
-                            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path v-if="!mobileMenuOpen" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-                                <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                            </svg>
-                        </button>
+                        <!-- Bouton menu mobile -->
+                        <div class="flex items-center md:hidden space-x-2">
+                            <ThemeToggle />
+                            <button
+                                @click="mobileMenuOpen = !mobileMenuOpen"
+                                class="text-gray-400 hover:text-white"
+                                aria-label="Menu mobile"
+                            >
+                                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path v-if="!mobileMenuOpen" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                                    <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

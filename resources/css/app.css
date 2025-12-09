@@ -1,5 +1,31 @@
 @import "tailwindcss";
 
+/* ========================================
+   THÈME SOMBRE (par défaut)
+   ======================================== */
+:root {
+    --bg-primary: #111827;
+    --bg-secondary: #1f2937;
+    --bg-tertiary: #374151;
+    --text-primary: #f3f4f6;
+    --text-secondary: #9ca3af;
+    --accent: #a855f7;
+    --accent-hover: #9333ea;
+}
+
+/* ========================================
+   THÈME CLAIR
+   ======================================== */
+.light {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f3f4f6;
+    --bg-tertiary: #e5e7eb;
+    --text-primary: #111827;
+    --text-secondary: #4b5563;
+    --accent: #7c3aed;
+    --accent-hover: #6d28d9;
+}
+
 /* Classes utilitaires pour l'accessibilité */
 .sr-only {
     position: absolute;
@@ -15,7 +41,7 @@
 
 /* Focus visible pour la navigation au clavier */
 *:focus-visible {
-    outline: 2px solid #a855f7;
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
 }
 
@@ -32,22 +58,70 @@
 
 /* Améliorer le contraste des liens */
 a:focus {
-    outline: 2px solid #a855f7;
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
 }
 
-/* Skip link pour l'accessibilité */
-.skip-link {
-    position: absolute;
-    top: -40px;
-    left: 0;
-    background: #7c3aed;
-    color: white;
-    padding: 8px 16px;
-    z-index: 100;
-    transition: top 0.3s;
+/* ========================================
+   STYLES DU MODE CLAIR
+   ======================================== */
+.light .bg-gray-900 {
+    background-color: #ffffff !important;
 }
 
-.skip-link:focus {
-    top: 0;
+.light .bg-gray-800 {
+    background-color: #f3f4f6 !important;
+}
+
+.light .bg-gray-800\/50 {
+    background-color: rgba(243, 244, 246, 0.5) !important;
+}
+
+.light .bg-gray-700 {
+    background-color: #e5e7eb !important;
+}
+
+.light .bg-gray-700\/50 {
+    background-color: rgba(229, 231, 235, 0.5) !important;
+}
+
+.light .text-gray-200,
+.light .text-gray-300 {
+    color: #1f2937 !important;
+}
+
+.light .text-gray-400 {
+    color: #4b5563 !important;
+}
+
+.light .text-gray-500 {
+    color: #6b7280 !important;
+}
+
+.light .text-white {
+    color: #111827 !important;
+}
+
+.light .border-gray-700 {
+    border-color: #d1d5db !important;
+}
+
+.light .border-gray-600 {
+    border-color: #d1d5db !important;
+}
+
+.light .placeholder-gray-400::placeholder {
+    color: #9ca3af !important;
+}
+
+/* Prose en mode clair */
+.light .prose-invert {
+    --tw-prose-body: #374151;
+    --tw-prose-headings: #111827;
+    --tw-prose-bold: #111827;
+    --tw-prose-code: #7c3aed;
+}
+
+.light .prose pre {
+    background-color: #1f2937 !important;
 }
