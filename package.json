@@ -22,6 +22,7 @@
         "vue-tsc": "^2.2.8"
     },
     "dependencies": {
+        "@laravel/stream-vue": "^0.3.10",
         "@tailwindcss/postcss": "^4.1.17",
         "@tailwindcss/typography": "^0.5.19",
         "highlight.js": "^11.11.1",

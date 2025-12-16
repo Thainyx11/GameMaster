@@ -8,6 +8,7 @@ use App\Services\OpenRouterService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -18,10 +19,13 @@ class ChatController extends Controller
         private OpenRouterService $openRouterService
     ) {}
 
+    /* =========================================================
+     |  AFFICHAGE DU CHAT (INERTIA NORMAL)
+     ========================================================= */
     public function index(?int $conversationId = null): Response
     {
         $user = Auth::user();
-        
+
         $conversations = $user->conversations()
             ->select('id', 'title', 'updated_at')
             ->orderByDesc('updated_at')
@@ -29,16 +33,22 @@ class ChatController extends Controller
 
         $currentConversation = null;
         $messages = [];
-        
+
         if ($conversationId) {
             $currentConversation = Conversation::where('id', $conversationId)
                 ->where('user_id', $user->id)
                 ->first();
-            
+
             if ($currentConversation) {
                 $messages = $currentConversation->messages()
-                    ->select('id', 'role', 'content', 'created_at')
-                    ->get();
+                    ->select('id', 'role', 'content', 'image_path', 'created_at')
+                    ->get()
+                    ->map(function ($message) {
+                        $message->image_url = $message->image_path
+                            ? asset('storage/' . $message->image_path)
+                            : null;
+                        return $message;
+                    });
             }
         }
 
@@ -51,6 +61,9 @@ class ChatController extends Controller
         ]);
     }
 
+    /* =========================================================
+     |  CRÉATION DE CONVERSATION
+     ========================================================= */
     public function createConversation(Request $request): JsonResponse
     {
         $request->validate([
@@ -68,85 +81,88 @@ class ChatController extends Controller
         ]);
     }
 
+    /* =========================================================
+     |  STREAM MESSAGE (AUCUN INERTIA / AUCUN HTML)
+     ========================================================= */
     public function sendMessage(Request $request): StreamedResponse
     {
         $request->validate([
             'conversation_id' => 'required|exists:conversations,id',
             'message' => 'required|string|max:10000',
+            'thinking_enabled' => 'nullable|boolean',
+            'image_path' => 'nullable|string',
         ]);
 
         $user = Auth::user();
-        
+
         $conversation = Conversation::where('id', $request->conversation_id)
             ->where('user_id', $user->id)
             ->firstOrFail();
 
-        $userMessage = Message::create([
+        // Message utilisateur
+        Message::create([
             'conversation_id' => $conversation->id,
             'role' => Message::ROLE_USER,
             'content' => $request->message,
+            'image_path' => $request->input('image_path'),
         ]);
 
         $conversation->touch();
 
+        // Préparer messages API
         $systemPrompt = $this->openRouterService->buildSystemPrompt($user);
-        $apiMessages = [
-            $systemPrompt,
-            ...$conversation->getMessagesForApi(),
-        ];
+        $apiMessages = [$systemPrompt];
 
-        return new StreamedResponse(function () use ($conversation, $apiMessages, $userMessage) {
-            if (ob_get_level()) {
-                ob_end_clean();
-            }
+        foreach ($conversation->messages()->orderBy('created_at')->get() as $msg) {
+            $apiMessages[] = [
+                'role' => $msg->role,
+                'content' => $msg->content,
+            ];
+        }
 
-            $fullResponse = '';
-            $isFirstMessage = $conversation->messages()->count() === 1;
+        $model = $conversation->model;
+        $thinkingEnabled = $request->boolean('thinking_enabled', false);
 
-            try {
-                foreach ($this->openRouterService->streamMessage($apiMessages, $conversation->model) as $token) {
-                    $fullResponse .= $token;
-                    
-                    echo "data: " . json_encode(['token' => $token]) . "\n\n";
-                    
-                    if (ob_get_level()) {
-                        ob_flush();
-                    }
-                    flush();
+        return response()->stream(function () use (
+            $apiMessages,
+            $model,
+            $thinkingEnabled
+        ) {
+            foreach (
+                $this->openRouterService->streamMessage(
+                    $apiMessages,
+                    $model,
+                    $thinkingEnabled
+                ) as $chunk
+            ) {
+                echo $chunk;
+
+                if (ob_get_level() > 0) {
+                    ob_flush();
                 }
-
-                $assistantMessage = Message::create([
-                    'conversation_id' => $conversation->id,
-                    'role' => Message::ROLE_ASSISTANT,
-                    'content' => $fullResponse,
-                ]);
-
-                if ($isFirstMessage) {
-                    $title = $this->openRouterService->generateTitle($userMessage->content);
-                    $conversation->update(['title' => $title]);
-                    
-                    echo "data: " . json_encode([
-                        'title' => $title,
-                        'conversation_id' => $conversation->id,
-                    ]) . "\n\n";
-                    flush();
-                }
-
-                echo "data: " . json_encode(['done' => true, 'message_id' => $assistantMessage->id]) . "\n\n";
-                flush();
-
-            } catch (\Exception $e) {
-                echo "data: " . json_encode(['error' => $e->getMessage()]) . "\n\n";
                 flush();
             }
+
+            // FIN DE STREAM
+            echo "\n[DONE]";
+            if (ob_get_level() > 0) {
+                ob_flush();
+            }
+            flush();
+
+            // ⛔ STOP TOTAL (empêche Inertia / Alpine)
+            exit;
+
         }, 200, [
-            'Content-Type' => 'text/event-stream',
-            'Cache-Control' => 'no-cache',
-            'Connection' => 'keep-alive',
+            'Content-Type' => 'text/plain; charset=utf-8',
+            'Cache-Control' => 'no-cache, no-store',
             'X-Accel-Buffering' => 'no',
         ]);
     }
 
+    /* =========================================================
+     |  SUPPRESSION CONVERSATION
+     ========================================================= */
     public function deleteConversation(Conversation $conversation): JsonResponse
     {
         if ($conversation->user_id !== Auth::id()) {
@@ -158,6 +174,9 @@ class ChatController extends Controller
         return response()->json(['success' => true]);
     }
 
+    /* =========================================================
+     |  CHANGEMENT DE MODÈLE
+     ========================================================= */
     public function updateModel(Request $request, Conversation $conversation): JsonResponse
     {
         if ($conversation->user_id !== Auth::id()) {
@@ -171,5 +190,36 @@ class ChatController extends Controller
         $conversation->update(['model' => $request->model]);
 
         return response()->json(['success' => true]);
+    }
+
+    /* =========================================================
+     |  EXPORT CONVERSATION
+     ========================================================= */
+    public function exportConversation(Conversation $conversation, string $format)
+    {
+        if ($conversation->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        $messages = $conversation->messages()->orderBy('created_at')->get();
+
+        if ($format === 'json') {
+            return response()->json([
+                'title' => $conversation->title,
+                'model' => $conversation->model,
+                'messages' => $messages,
+            ]);
+        }
+
+        $markdown = "# {$conversation->title}\n\n";
+
+        foreach ($messages as $message) {
+            $markdown .= "**{$message->role}**\n\n{$message->content}\n\n---\n\n";
+        }
+
+        return response($markdown, 200, [
+            'Content-Type' => 'text/markdown',
+            'Content-Disposition' => 'attachment; filename="' . Str::slug($conversation->title) . '.md"',
+        ]);
     }
 }

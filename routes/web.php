@@ -32,18 +32,24 @@ Route::get('/cookies', function () {
 // ============================================
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    
+
     // Chat
     Route::get('/chat', [ChatController::class, 'index'])->name('chat.index');
     Route::get('/chat/{conversationId}', [ChatController::class, 'index'])->name('chat.show');
-    
+
     // Actions conversations
     Route::post('/chat/conversations', [ChatController::class, 'createConversation'])->name('chat.create');
     Route::delete('/chat/conversations/{conversation}', [ChatController::class, 'deleteConversation'])->name('chat.delete');
     Route::patch('/chat/conversations/{conversation}/model', [ChatController::class, 'updateModel'])->name('chat.updateModel');
-    
-    // Envoi de message (SSE streaming)
-    Route::post('/chat/message', [ChatController::class, 'sendMessage'])->name('chat.send');
+    Route::get('/chat/conversations/{conversation}/export/{format}', [ChatController::class, 'exportConversation'])->name('chat.export');
+
+    // Envoi de message (SSE streaming) — ROUTE STREAM PROPRE
+    Route::post('/chat/message', [ChatController::class, 'sendMessage'])
+    ->name('chat.send')
+    ->withoutMiddleware([
+        \App\Http\Middleware\HandleInertiaRequests::class,
+        \Barryvdh\Debugbar\Middleware\InjectDebugbar::class,
+    ]);
 
     // Instructions personnalisées
     Route::get('/instructions', [InstructionsController::class, 'edit'])->name('instructions.edit');
