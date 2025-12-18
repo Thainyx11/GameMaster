@@ -31,19 +31,19 @@ class OpenRouterService
 
                 return collect($response->json('data', []))
                     ->filter(fn($model) => isset($model['id'], $model['name']))
-                    ->sortBy('name')
+                    ->sortBy(fn($model) => strtolower($model['name']), SORT_NATURAL)
                     ->map(fn(array $model): array => [
                         'id' => $model['id'],
                         'name' => $model['name'],
                     ])
                     ->values()
-                    ->take(50)
                     ->toArray();
             } catch (\Exception $e) {
                 return [
                     ['id' => 'openai/gpt-4o-mini', 'name' => 'GPT-4o Mini'],
                     ['id' => 'openai/gpt-4o', 'name' => 'GPT-4o'],
                     ['id' => 'anthropic/claude-3-haiku', 'name' => 'Claude 3 Haiku'],
+                    ['id' => 'mistralai/mistral-small', 'name' => 'Mistral Small'],
                 ];
             }
         });
@@ -99,7 +99,6 @@ PROMPT;
         string $model = self::DEFAULT_MODEL,
         bool $thinkingEnabled = false
     ): void {
-        // Si le mode thinking est activé, ajouter une instruction
         if ($thinkingEnabled) {
             $thinkingInstruction = [
                 'role' => 'system',
@@ -148,12 +147,11 @@ PROMPT;
         }
     }
 
-/**
+    /**
      * Stream un message et retourne un Generator (pour utilisation avec yield)
      */
-    public function streamMessage(array $messages, string $model = self::DEFAULT_MODEL, bool $thinkingEnabled = false): \Generator
+    public function streamMessage(array $messages, string $model = self::DEFAULT_MODEL, bool $thinkingEnabled = false): Generator
     {
-        // Si le mode thinking est activé, ajouter une instruction
         if ($thinkingEnabled) {
             $thinkingInstruction = [
                 'role' => 'system',
