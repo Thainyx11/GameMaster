@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\ImageController;
 use App\Http\Controllers\InstructionsController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\UploadController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -45,11 +47,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Envoi de message (SSE streaming) — ROUTE STREAM PROPRE
     Route::post('/chat/message', [ChatController::class, 'sendMessage'])
-    ->name('chat.send')
-    ->withoutMiddleware([
-        \App\Http\Middleware\HandleInertiaRequests::class,
-        \Barryvdh\Debugbar\Middleware\InjectDebugbar::class,
-    ]);
+        ->name('chat.send')
+        ->withoutMiddleware([
+            \App\Http\Middleware\HandleInertiaRequests::class,
+            \Barryvdh\Debugbar\Middleware\InjectDebugbar::class,
+        ]);
+
+    // ============================================
+    // UPLOAD D'IMAGES
+    // ============================================
+    Route::post('/upload/image', [UploadController::class, 'upload'])->name('upload.image');
+
+    // ============================================
+    // GÉNÉRATION D'IMAGES
+    // ============================================
+    Route::post('/image/generate', [ImageController::class, 'generate'])->name('image.generate');
 
     // Instructions personnalisées
     Route::get('/instructions', [InstructionsController::class, 'edit'])->name('instructions.edit');

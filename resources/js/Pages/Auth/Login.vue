@@ -20,6 +20,9 @@ const form = useForm({
 
 const submit = () => {
     form.post(route('login'), {
+        onSuccess: () => {
+            window.location.href = '/chat';
+        },
         onFinish: () => {
             form.reset('password');
         },

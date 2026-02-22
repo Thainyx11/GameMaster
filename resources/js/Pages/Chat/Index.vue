@@ -90,7 +90,7 @@ watch(() => props.currentConversation, (newConv) => {
 // Messages à afficher (avec streaming)
 const displayMessages = computed(() => {
     const msgs = [...localMessages.value]
-    
+
     if (isStreaming.value && streamedContent.value) {
         msgs.push({
             id: -1,
@@ -99,7 +99,7 @@ const displayMessages = computed(() => {
             created_at: new Date().toISOString()
         })
     }
-    
+
     return msgs
 })
 
@@ -175,7 +175,7 @@ async function sendMessage() {
                 },
                 body: JSON.stringify({ model: selectedModel.value }),
             })
-            
+
             const data = await response.json()
             currentConversationId.value = data.conversation.id
         } catch (error) {
@@ -253,7 +253,7 @@ async function regenerateLastMessage() {
 
 function updateModel(model: string) {
     selectedModel.value = model
-    
+
     if (props.currentConversation) {
         fetch(route('chat.updateModel', props.currentConversation.id), {
             method: 'PATCH',
@@ -278,6 +278,22 @@ function handleImageRemoved() {
     uploadedImage.value = null
 }
 
+// Supprimer une conversation
+async function deleteConversation(id: number) {
+    try {
+        await fetch(route('chat.delete', id), {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': getCsrfToken(),
+                'Accept': 'application/json',
+            },
+        })
+        router.visit(route('chat.index'))
+    } catch (error) {
+        console.error('Erreur suppression:', error)
+    }
+}
+
 const suggestions = [
     { text: '🐉 Heroic Fantasy', prompt: 'Je veux jouer une aventure heroic fantasy avec des dragons et de la magie.' },
     { text: '🐙 Horreur cosmique', prompt: 'Lance-moi dans une aventure d\'horreur lovecraftienne avec des mystères indicibles.' },
@@ -295,7 +311,9 @@ function useSuggestion(prompt: string) {
             <!-- Sidebar -->
             <ConversationSidebar
                 :conversations="conversations"
-                :current-conversation-id="currentConversation?.id"
+                :current-id="currentConversation?.id"
+                @new-conversation="window.location.href = '/chat'"
+                @delete-conversation="deleteConversation"
             />
 
             <!-- Zone principale -->
@@ -305,12 +323,12 @@ function useSuggestion(prompt: string) {
                     <h1 class="text-lg font-semibold text-gray-200">
                         {{ currentConversation?.title || '🎲 Nouvelle aventure' }}
                     </h1>
-                    
+
                     <div class="flex items-center gap-2">
                         <ImageGenerator />
-                        <ExportMenu 
-                            v-if="currentConversation" 
-                            :conversation-id="currentConversation.id" 
+                        <ExportMenu
+                            v-if="currentConversation"
+                            :conversation-id="currentConversation.id"
                         />
                         <ModelSelector
                             :models="models"
@@ -330,7 +348,7 @@ function useSuggestion(prompt: string) {
                         <p class="text-gray-400 max-w-md mb-6">
                             {{ t('chat.welcomeSubtitle') }}
                         </p>
-                        
+
                         <!-- Suggestions -->
                         <div class="flex flex-wrap gap-2 justify-center">
                             <button
@@ -364,9 +382,9 @@ function useSuggestion(prompt: string) {
                 <div class="border-t border-gray-700 p-4 bg-gray-800/50">
                     <form @submit.prevent="sendMessage" class="flex gap-3" role="form" aria-label="Envoyer un message">
                         <QuickTools @command="insertCommand" />
-                        <ImageUpload 
-                            @uploaded="handleImageUploaded" 
-                            @removed="handleImageRemoved" 
+                        <ImageUpload
+                            @uploaded="handleImageUploaded"
+                            @removed="handleImageRemoved"
                         />
                         <ThinkingToggle v-model="thinkingEnabled" />
                         <label for="message-input" class="sr-only">Votre message</label>

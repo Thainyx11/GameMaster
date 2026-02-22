@@ -19,6 +19,10 @@ const emit = defineEmits<{
 
 defineProps<Props>()
 
+function newChat() {
+    window.location.href = '/chat?new=' + Date.now()
+}
+
 function formatDate(dateString: string): string {
     const date = new Date(dateString)
     const now = new Date()
@@ -31,14 +35,14 @@ function formatDate(dateString: string): string {
     if (diffMins < 60) return `Il y a ${diffMins} min`
     if (diffHours < 24) return `Il y a ${diffHours}h`
     if (diffDays < 7) return `Il y a ${diffDays}j`
-    
+
     return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
 }
 
 function confirmDelete(id: number, event: Event) {
     event.preventDefault()
     event.stopPropagation()
-    
+
     if (confirm('Supprimer cette conversation ?')) {
         emit('deleteConversation', id)
     }
@@ -49,8 +53,8 @@ function confirmDelete(id: number, event: Event) {
     <aside class="w-64 bg-gray-800 border-r border-gray-700 flex flex-col h-full">
         <!-- Bouton nouvelle conversation -->
         <div class="p-4 border-b border-gray-700">
-            <button 
-                @click="emit('newConversation')"
+            <button
+                @click="newChat"
                 class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
             >
                 <span class="text-xl">✨</span>
@@ -71,18 +75,18 @@ function confirmDelete(id: number, event: Event) {
                 :key="conv.id"
                 :href="route('chat.show', conv.id)"
                 class="group flex items-center gap-2 p-3 rounded-lg transition-colors"
-                :class="conv.id === currentId 
-                    ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30' 
+                :class="conv.id === currentId
+                    ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
                     : 'text-gray-300 hover:bg-gray-700/50'"
             >
                 <span class="text-lg flex-shrink-0">📜</span>
-                
+
                 <div class="flex-1 min-w-0">
                     <p class="truncate text-sm font-medium">{{ conv.title }}</p>
                     <p class="text-xs text-gray-500">{{ formatDate(conv.updated_at) }}</p>
                 </div>
 
-                <button 
+                <button
                     @click="confirmDelete(conv.id, $event)"
                     class="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-opacity p-1"
                     title="Supprimer"

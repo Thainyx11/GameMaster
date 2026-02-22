@@ -109,38 +109,90 @@ class ChatController extends Controller
 
         $conversation->touch();
 
+        // Compter les messages pour savoir si c'est le premier échange
+        $messageCount = $conversation->messages()->count();
+        $isFirstMessage = ($messageCount <= 1);
+        $firstMessageContent = $request->message;
+        $imagePath = $request->input('image_path');
+
         // Préparer messages API
         $systemPrompt = $this->openRouterService->buildSystemPrompt($user);
         $apiMessages = [$systemPrompt];
 
         foreach ($conversation->messages()->orderBy('created_at')->get() as $msg) {
-            $apiMessages[] = [
-                'role' => $msg->role,
-                'content' => $msg->content,
-            ];
+            // Si le message a une image, construire un message multimodal
+            if ($msg->image_path && $msg->role === 'user') {
+                $imageUrl = asset('storage/' . $msg->image_path);
+                $apiMessages[] = OpenRouterService::buildMessageWithImage($msg->content, $imageUrl);
+            } else {
+                $apiMessages[] = [
+                    'role' => $msg->role,
+                    'content' => $msg->content,
+                ];
+            }
         }
 
         $model = $conversation->model;
         $thinkingEnabled = $request->boolean('thinking_enabled', false);
+        $conversationId = $conversation->id;
+        $openRouterService = $this->openRouterService;
 
         return response()->stream(function () use (
             $apiMessages,
             $model,
-            $thinkingEnabled
+            $thinkingEnabled,
+            $isFirstMessage,
+            $firstMessageContent,
+            $conversationId,
+            $openRouterService
         ) {
+            // Stream la réponse de l'IA
+            $fullResponse = '';
+
             foreach (
-                $this->openRouterService->streamMessage(
+                $openRouterService->streamMessage(
                     $apiMessages,
                     $model,
                     $thinkingEnabled
                 ) as $chunk
             ) {
                 echo $chunk;
+                $fullResponse .= $chunk;
 
                 if (ob_get_level() > 0) {
                     ob_flush();
                 }
                 flush();
+            }
+
+            // Sauvegarder la réponse de l'assistant
+            $cleanContent = preg_replace('/\[REASONING\][\s\S]*?\[\/REASONING\]/', '', $fullResponse);
+            $cleanContent = trim($cleanContent);
+
+            if ($cleanContent) {
+                $conversation = Conversation::find($conversationId);
+                if ($conversation) {
+                    Message::create([
+                        'conversation_id' => $conversationId,
+                        'role' => 'assistant',
+                        'content' => $cleanContent,
+                    ]);
+                }
+            }
+
+            // GÉNÉRATION AUTOMATIQUE DU TITRE (premier message uniquement)
+            if ($isFirstMessage) {
+                try {
+                    $title = $openRouterService->generateTitle($firstMessageContent);
+                    $conversation = Conversation::find($conversationId);
+                    if ($conversation) {
+                        $conversation->update(['title' => $title]);
+                    }
+                    echo "\n[TITLE]{$title}[/TITLE]";
+                    echo "\n[CONVERSATION_ID]{$conversationId}[/CONVERSATION_ID]";
+                } catch (\Exception $e) {
+                    // En cas d'erreur, on garde le titre par défaut
+                }
             }
 
             // FIN DE STREAM
@@ -150,7 +202,6 @@ class ChatController extends Controller
             }
             flush();
 
-            // ⛔ STOP TOTAL (empêche Inertia / Alpine)
             exit;
 
         }, 200, [
